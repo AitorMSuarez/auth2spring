@@ -18,22 +18,16 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
+import com.ams.authorizationserver.service.ClientService;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -49,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AuthorizationSecurityConfig {
 
 	private final PasswordEncoder passwordEncoder;
+	private final ClientService clientService;
 
 	// Configura el filtro de seguridad para el servidor de autorización OAuth2
 	@Bean
@@ -72,37 +67,11 @@ public class AuthorizationSecurityConfig {
 	public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
 
 		// Se le dice que como requisito tiene que estar autenticado.
-		http.authorizeHttpRequests(auth -> auth.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
+		http.authorizeHttpRequests(
+				auth -> auth.requestMatchers("/auth/**", "/client/**").permitAll().anyRequest().authenticated())
 				.formLogin(Customizer.withDefaults());
-		http.csrf().ignoringRequestMatchers("/auth/**");
+		http.csrf().ignoringRequestMatchers("/auth/**", "/client/**");
 		return http.build();
-	}
-
-	// Configura los clientes registrados y sus detalles, como ID de cliente,
-	// secreto, alcance, etc.
-	@Bean
-	public RegisteredClientRepository registeredClientRepository() {
-		RegisteredClient registeredOidcClient = RegisteredClient.withId(UUID.randomUUID().toString()).clientId("client") // oidc-client
-				// se autentica el cliente y el usuario.
-				.clientSecret(passwordEncoder.encode("secret"))
-				// método de autenticación
-				.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-				// RESPONSE TYPE en OAUTHDEBUGGER
-				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-//                web para probarlo
-				.redirectUri("https://oauthdebugger.com/debug")
-//                web para implementar de ejemplo
-//				.redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
-//                lo mismo para el logout
-//				.postLogoutRedirectUri("http://127.0.0.1:8080/")
-				.scope(OidcScopes.OPENID)
-
-//				.scope(OidcScopes.OPENID).scope(OidcScopes.PROFILE)
-				.clientSettings(clientSettings()).build();
-// TODO
-		return new InMemoryRegisteredClientRepository(registeredOidcClient);
 	}
 
 	@Bean
@@ -119,10 +88,6 @@ public class AuthorizationSecurityConfig {
 				context.getClaims().claim("roles", roles).claim("Authorized Company", "Gertek");
 			}
 		};
-	}
-
-	private ClientSettings clientSettings() {
-		return ClientSettings.builder().requireAuthorizationConsent(true).build();
 	}
 
 	// Configura las propiedades del servidor de autorización OAuth2
