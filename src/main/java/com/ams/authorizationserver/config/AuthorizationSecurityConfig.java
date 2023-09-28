@@ -5,7 +5,9 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +15,8 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -25,6 +29,8 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
@@ -72,14 +78,6 @@ public class AuthorizationSecurityConfig {
 		return http.build();
 	}
 
-//	// Configura los detalles del usuario que se utilizarán para la autenticación
-//	@Bean
-//	public UserDetailsService userDetailsService() {
-//		UserDetails userDetails = User.withUsername("user").password("{noop}user").authorities("ROLE_USER").build();
-//// TODO
-//		return new InMemoryUserDetailsManager(userDetails);
-//	}
-
 	// Configura los clientes registrados y sus detalles, como ID de cliente,
 	// secreto, alcance, etc.
 	@Bean
@@ -105,6 +103,22 @@ public class AuthorizationSecurityConfig {
 				.clientSettings(clientSettings()).build();
 // TODO
 		return new InMemoryRegisteredClientRepository(registeredOidcClient);
+	}
+
+	@Bean
+	public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
+		return context -> {
+			Authentication principal = context.getPrincipal();
+			if ("id_token".equals(context.getTokenType().getValue())) {
+				context.getClaims().claim("token_type", "id token");
+			}
+			if ("access_token".equals(context.getTokenType().getValue())) {
+				context.getClaims().claim("token_type", "access token");
+				Set<String> roles = principal.getAuthorities().stream().map(GrantedAuthority::getAuthority)
+						.collect(Collectors.toSet());
+				context.getClaims().claim("roles", roles).claim("Authorized Company", "Gertek");
+			}
+		};
 	}
 
 	private ClientSettings clientSettings() {
