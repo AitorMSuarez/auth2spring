@@ -52,11 +52,11 @@ public class AuthorizationSecurityConfig {
 
 	private final GoogleUserRepository googleUserRepository;
 
-
 	// Configura el filtro de seguridad para el servidor de autorización OAuth2
 	@Bean
 	@Order(1)
 	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+		http.cors(Customizer.withDefaults());
 		OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 		http.getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults()); // Enable OpenID
 																										// Connect 1.0
@@ -69,10 +69,10 @@ public class AuthorizationSecurityConfig {
 	@Bean
 	@Order(2)
 	public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
+		http.cors(Customizer.withDefaults());
+		FederatedIdentityConfigurer federatedIdentityConfigurer = new FederatedIdentityConfigurer()
+				.oauth2UserHandler(new UserRepositoryOAuth2UserHandler(googleUserRepository));
 
-		   FederatedIdentityConfigurer federatedIdentityConfigurer = new FederatedIdentityConfigurer()
-	                .oauth2UserHandler(new UserRepositoryOAuth2UserHandler(googleUserRepository));
-		   
 		http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/auth/**", "/client/**", "/login")
 				.permitAll().anyRequest().authenticated()).formLogin(Customizer.withDefaults())
 				.apply(federatedIdentityConfigurer);

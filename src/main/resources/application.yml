@@ -4,9 +4,9 @@ server:
 logging:
   level:
     root: TRACE
-    org.springframework.web: TRACE
-    org.springframework.security: TRACE
-    org.springframework.security.oauth2: TRACE
+    '[org.springframework.web]': TRACE
+    '[org.springframework.security]': TRACE
+    '[org.springframework.security.oauth2]': TRACE
     
 spring:
   datasource:
@@ -22,7 +22,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MariaDBDialect
-        format_sql: true
+        '[format_sql]': true
   security:
     oauth2:
       client:
