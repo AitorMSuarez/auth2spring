@@ -55,7 +55,7 @@ public class AuthorizationSecurityConfig {
 	// Configura el filtro de seguridad para el servidor de autorización OAuth2
 	@Bean
 	@Order(1)
-	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
 		http.cors(Customizer.withDefaults());
 		OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 		http.getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults()); // Enable OpenID
@@ -68,7 +68,7 @@ public class AuthorizationSecurityConfig {
 	// Configura el filtro de seguridad predeterminado para la aplicación
 	@Bean
 	@Order(2)
-	public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
 		http.cors(Customizer.withDefaults());
 		FederatedIdentityConfigurer federatedIdentityConfigurer = new FederatedIdentityConfigurer()
 				.oauth2UserHandler(new UserRepositoryOAuth2UserHandler(googleUserRepository));
@@ -83,7 +83,7 @@ public class AuthorizationSecurityConfig {
 	}
 
 	@Bean
-	public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
+	OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
 		return context -> {
 			Authentication principal = context.getPrincipal();
 			if ("id_token".equals(context.getTokenType().getValue())) {
@@ -99,22 +99,22 @@ public class AuthorizationSecurityConfig {
 	}
 
 	@Bean
-	public SessionRegistry sessionRegistry() {
+	SessionRegistry sessionRegistry() {
 		return new SessionRegistryImpl();
 	}
 
 	@Bean
-	public HttpSessionEventPublisher httpSessionEventPublisher() {
+	HttpSessionEventPublisher httpSessionEventPublisher() {
 		return new HttpSessionEventPublisher();
 	}
 
 	@Bean
-	public OAuth2AuthorizationService authorizationService() {
+	OAuth2AuthorizationService authorizationService() {
 		return new InMemoryOAuth2AuthorizationService();
 	}
 
 	@Bean
-	public OAuth2AuthorizationConsentService authorizationConsentService() {
+	OAuth2AuthorizationConsentService authorizationConsentService() {
 		return new InMemoryOAuth2AuthorizationConsentService();
 	}
 
@@ -126,14 +126,14 @@ public class AuthorizationSecurityConfig {
 
 	// Configura un decodificador JWT para validar los tokens de acceso
 	@Bean
-	public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+	JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
 		return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
 	}
 
 	// Configura las claves públicas y privadas utilizadas para firmar y verificar
 	// tokens JWT
 	@Bean
-	public JWKSource<SecurityContext> jwkSource() {
+	JWKSource<SecurityContext> jwkSource() {
 		RSAKey rsaKey = generateRSAKey();
 		JWKSet jwkSet = new JWKSet(rsaKey);
 		return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
