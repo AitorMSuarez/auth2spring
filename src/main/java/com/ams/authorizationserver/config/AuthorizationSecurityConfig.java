@@ -9,31 +9,34 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 
+import com.ams.authorizationserver.federation.FederatedIdentityConfigurer;
+import com.ams.authorizationserver.federation.UserRepositoryOAuth2UserHandler;
+import com.ams.authorizationserver.repository.GoogleUserRepository;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -48,65 +51,49 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AuthorizationSecurityConfig {
 
-	private final PasswordEncoder passwordEncoder;
+	private final GoogleUserRepository googleUserRepository;
+
+	@Value("${logout.url}")
+	private String logoutUrl;
 
 	// Configura el filtro de seguridad para el servidor de autorización OAuth2
 	@Bean
 	@Order(1)
-	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+		http.cors(Customizer.withDefaults());
 		OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-		http.getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults()); // Habilitar
-																										// OpenID
+		http.getConfigurer(OAuth2AuthorizationServerConfigurer.class).oidc(Customizer.withDefaults()); // Enable OpenID
 																										// Connect 1.0
-		http.exceptionHandling(
-				exception -> exception.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login")))
-				.oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults())); // Aceptar tokens de acceso
-																							// para User Info y/o Client
-																							// Registration
+		http.oauth2ResourceServer(OAuth2ResourceServerConfigurer::jwt);
+		http.apply(new FederatedIdentityConfigurer());
+		
+		http.csrf(csrf -> csrf.disable());
+
+		
 		return http.build();
 	}
 
 	// Configura el filtro de seguridad predeterminado para la aplicación
 	@Bean
 	@Order(2)
-	public SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain webSecurityFilterChain(HttpSecurity http) throws Exception {
+		http.cors(Customizer.withDefaults());
+		FederatedIdentityConfigurer federatedIdentityConfigurer = new FederatedIdentityConfigurer()
+				.oauth2UserHandler(new UserRepositoryOAuth2UserHandler(googleUserRepository));
 
-		// Se le dice que como requisito tiene que estar autenticado.
-		http.authorizeHttpRequests(auth -> auth.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
-				.formLogin(Customizer.withDefaults());
-		http.csrf().ignoringRequestMatchers("/auth/**");
+		http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/auth/**", "/client/**", "/login**")
+				.permitAll().anyRequest().authenticated()).formLogin(Customizer.withDefaults())
+				.apply(federatedIdentityConfigurer);
+
+		http.logout(logout -> logout.logoutSuccessUrl(logoutUrl));
+
+		http.csrf(csrf -> csrf.disable());
+
 		return http.build();
 	}
 
-	// Configura los clientes registrados y sus detalles, como ID de cliente,
-	// secreto, alcance, etc.
 	@Bean
-	public RegisteredClientRepository registeredClientRepository() {
-		RegisteredClient registeredOidcClient = RegisteredClient.withId(UUID.randomUUID().toString()).clientId("client") // oidc-client
-				// se autentica el cliente y el usuario.
-				.clientSecret(passwordEncoder.encode("secret"))
-				// método de autenticación
-				.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-				// RESPONSE TYPE en OAUTHDEBUGGER
-				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-//                web para probarlo
-				.redirectUri("https://oauthdebugger.com/debug")
-//                web para implementar de ejemplo
-//				.redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
-//                lo mismo para el logout
-//				.postLogoutRedirectUri("http://127.0.0.1:8080/")
-				.scope(OidcScopes.OPENID)
-
-//				.scope(OidcScopes.OPENID).scope(OidcScopes.PROFILE)
-				.clientSettings(clientSettings()).build();
-// TODO
-		return new InMemoryRegisteredClientRepository(registeredOidcClient);
-	}
-
-	@Bean
-	public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
+	OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
 		return context -> {
 			Authentication principal = context.getPrincipal();
 			if ("id_token".equals(context.getTokenType().getValue())) {
@@ -121,8 +108,24 @@ public class AuthorizationSecurityConfig {
 		};
 	}
 
-	private ClientSettings clientSettings() {
-		return ClientSettings.builder().requireAuthorizationConsent(true).build();
+	@Bean
+	SessionRegistry sessionRegistry() {
+		return new SessionRegistryImpl();
+	}
+
+	@Bean
+	HttpSessionEventPublisher httpSessionEventPublisher() {
+		return new HttpSessionEventPublisher();
+	}
+
+	@Bean
+	OAuth2AuthorizationService authorizationService() {
+		return new InMemoryOAuth2AuthorizationService();
+	}
+
+	@Bean
+	OAuth2AuthorizationConsentService authorizationConsentService() {
+		return new InMemoryOAuth2AuthorizationConsentService();
 	}
 
 	// Configura las propiedades del servidor de autorización OAuth2
@@ -133,14 +136,14 @@ public class AuthorizationSecurityConfig {
 
 	// Configura un decodificador JWT para validar los tokens de acceso
 	@Bean
-	public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+	JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
 		return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
 	}
 
 	// Configura las claves públicas y privadas utilizadas para firmar y verificar
 	// tokens JWT
 	@Bean
-	public JWKSource<SecurityContext> jwkSource() {
+	JWKSource<SecurityContext> jwkSource() {
 		RSAKey rsaKey = generateRSAKey();
 		JWKSet jwkSet = new JWKSet(rsaKey);
 		return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
