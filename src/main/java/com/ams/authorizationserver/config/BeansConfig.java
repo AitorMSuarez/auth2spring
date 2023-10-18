@@ -12,18 +12,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class BeansConfig {
 
 	@Bean
-	public PasswordEncoder passwordEncoder() {
+	PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder();
 	}
 
 	@Bean
-	public CorsConfigurationSource corsConfigurationSource() {
+	CorsConfigurationSource corsConfigurationSource() {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		CorsConfiguration cors = new CorsConfiguration();
 		cors.addAllowedHeader("*");
 		cors.addAllowedMethod("*");
 		cors.setAllowCredentials(true);
-		cors.addAllowedOrigin("http://localhost:4200");
+		//cors.addAllowedOrigin("http://localhost:4200");
+		cors.addAllowedOriginPattern("**/**");
 		source.registerCorsConfiguration("/**", cors);
 		return source;
 	}

@@ -1,6 +1,9 @@
 server:
   port: 9000
 
+logout:
+  url: http://localhost:4200/logout
+
 logging:
   level:
     root: TRACE

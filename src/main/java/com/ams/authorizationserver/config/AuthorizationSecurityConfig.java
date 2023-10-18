@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
@@ -52,6 +53,9 @@ public class AuthorizationSecurityConfig {
 
 	private final GoogleUserRepository googleUserRepository;
 
+	@Value("${logout.url}")
+	private String logoutUrl;
+
 	// Configura el filtro de seguridad para el servidor de autorización OAuth2
 	@Bean
 	@Order(1)
@@ -62,6 +66,10 @@ public class AuthorizationSecurityConfig {
 																										// Connect 1.0
 		http.oauth2ResourceServer(OAuth2ResourceServerConfigurer::jwt);
 		http.apply(new FederatedIdentityConfigurer());
+		
+		http.csrf(csrf -> csrf.disable());
+
+		
 		return http.build();
 	}
 
@@ -73,11 +81,13 @@ public class AuthorizationSecurityConfig {
 		FederatedIdentityConfigurer federatedIdentityConfigurer = new FederatedIdentityConfigurer()
 				.oauth2UserHandler(new UserRepositoryOAuth2UserHandler(googleUserRepository));
 
-		http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/auth/**", "/client/**", "/login")
+		http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/auth/**", "/client/**", "/login**")
 				.permitAll().anyRequest().authenticated()).formLogin(Customizer.withDefaults())
 				.apply(federatedIdentityConfigurer);
 
-		http.csrf(csrf -> csrf.ignoringRequestMatchers("/auth/**", "/client/**"));
+		http.logout(logout -> logout.logoutSuccessUrl(logoutUrl));
+
+		http.csrf(csrf -> csrf.disable());
 
 		return http.build();
 	}
