@@ -1,0 +1,122 @@
+import javax.persistence.*;
+import java.util.List;
+
+@Entity
+@Table(name = "client")
+public class Client {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "client_id")
+    private String clientId;
+
+    @Column(name = "client_secret")
+    private String clientSecret;
+
+    @Column(name = "require_proof_key")
+    private boolean requireProofKey;
+
+    @OneToMany(mappedBy = "client", cascade = CascadeType.ALL)
+    private List<ClientAuthenticationMethod> authenticationMethods;
+
+    @ManyToMany
+    @JoinTable(name = "client_authorization_grant_type_mapping",
+               joinColumns = @JoinColumn(name = "client_id"),
+               inverseJoinColumns = @JoinColumn(name = "grant_type_id"))
+    private List<ClientAuthorizationGrantType> authorizationGrantTypes;
+
+    @OneToMany(mappedBy = "client", cascade = CascadeType.ALL)
+    private List<ClientRedirectUri> redirectUris;
+
+    @OneToMany(mappedBy = "client", cascade = CascadeType.ALL)
+    private List<ClientScope> scopes;
+
+    // Getters and setters
+
+    // Constructor
+}
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "client_authentication_methods")
+public class ClientAuthenticationMethod {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "client_id")
+    private Client client;
+
+    @Column(name = "authentication_methods")
+    private byte[] authenticationMethods;
+
+    // Getters and setters
+
+    // Constructor
+}
+import javax.persistence.*;
+
+@Entity
+@Table(name = "client_authorization_grant_types")
+public class ClientAuthorizationGrantType {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "authorization_grant_type")
+    private byte[] authorizationGrantType;
+
+    // Getters and setters
+
+    // Constructor
+}
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "client_redirect_uris")
+public class ClientRedirectUri {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "client_id")
+    private Client client;
+
+    @Column(name = "redirect_uris")
+    private String redirectUris;
+
+    // Getters and setters
+
+    // Constructor
+}
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "client_scopes")
+public class ClientScope {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "client_id")
+    private Client client;
+
+    @Column(name = "scopes")
+    private String scopes;
+
+    // Getters and setters
+
+    // Constructor
+}
